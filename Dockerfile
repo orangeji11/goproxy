@@ -1,22 +1,27 @@
-FROM golang:alpine AS build
-
-RUN apk add --no-cache -U make git mercurial subversion
+#FROM golang:alpine AS build
+ARG arch
+FROM 10.30.38.116/utccp-$arch/dependence-golang-builder:latest AS build1
 
 COPY . /src/goproxy
 RUN cd /src/goproxy &&\
     export CGO_ENABLED=0 &&\
+    export GOPROXY="https://goproxy.cn" &&\
     make
 
-FROM golang:alpine
+FROM 10.30.38.116/utccp-$arch/dependence-golang-builder:latest AS build2
+
+COPY ./tini /src/tini
+RUN dnf install gcc gcc-c++ cmake -y
+RUN cd /src/tini && \
+    cmake . && \
+    make
+
+#FROM golang:alpine
+FROM 10.30.38.116/utccp-$arch/dependence-base:latest
 
 # Add tini
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static-amd64 /usr/bin/tini
-RUN chmod +x /usr/bin/tini
-
-RUN apk add --no-cache -U git mercurial subversion
-
-COPY --from=build /src/goproxy/bin/goproxy /goproxy
+COPY --from=build2 /src/tini/tini /usr/bin/tini
+COPY --from=build1 /src/goproxy/bin/goproxy /goproxy
 
 VOLUME /go
 
